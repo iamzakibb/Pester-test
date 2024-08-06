@@ -1,0 +1,119 @@
+<#
+.SYNOPSIS
+    Get user Groups Binding for a name or description
+
+.DESCRIPTION
+    SonarQube has different user groups for DevOps integration. This
+    cmdlet can be used to get different or specific user for a SonarQube project.
+
+.PARAMETER Uri
+    Base URL for SonarQube endpoint.
+
+.PARAMETER ApiKey
+    SonarQube API Key.
+
+.PARAMETER Organization
+    The organization key or name in SonarQube/SonarCloud.
+
+.PARAMETER Match
+    User Groups name or description for research.
+#>
+
+
+  $Uri = "https://sonarcloud.io/"
+ $ApiKey = "1ffcef4bad0f180b4ca71a3c433983ce290a9790"
+ $Organization = "newtoken"
+ $Match = "developers"
+ $result = Get-SonarQubeUserGroup -Uri $Uri -ApiKey $ApiKey -Organization $Organization -Match $Match
+ $result | Format-Table -AutoSize
+
+
+
+function Get-SonarQubeUserGroup {
+    param (
+        [Parameter(Mandatory)]
+        [string]$Uri = "https://sonarcloud.io/",
+
+        [Parameter(Mandatory)]
+        [string]$ApiKey,
+
+        [Parameter(Mandatory)]
+        [string]$Organization,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Match
+    )
+
+    $commonArgs = @{
+        Uri     = $Uri
+        ApiPath = "api/user_groups/search"
+        ApiKey  = $ApiKey
+        Organization = $Organization
+        Method  = "GET"
+    }
+
+    try {
+        $groups = @()
+
+        $queryArgs = @{
+            organization = $Organization
+            p = 1
+            ps = 5
+        }
+
+        if ($PSBoundParameters.Keys.Contains("Match")) {
+            $queryArgs.q = $Match
+        }
+
+        do {
+            $response = Invoke-SonarQubeRestMethod @commonArgs -QueryParameters $queryArgs
+            $groups += $response.groups
+            $queryArgs.p += 1
+        } while ($response.paging.pageIndex -le $response.paging.total)
+
+        Write-Verbose ("User Group Successfully retrieved from SonarQube")
+        return $groups
+    }
+    catch {
+        $errorDetail = $_.ToString() # get the error message
+        Write-Verbose ("Exception details:`n{0}" -f ($_ | Out-String))
+        throw "Unable to get User group: $errorDetail"
+    }
+}
+
+function Invoke-SonarQubeRestMethod {
+    param (
+        [Parameter(Mandatory)]
+        [string]$Uri,
+
+        [Parameter(Mandatory)]
+        [string]$ApiPath,
+
+        [Parameter(Mandatory)]
+        [string]$ApiKey,
+
+        [Parameter(Mandatory)]
+        [string]$Organization,
+
+        [Parameter(Mandatory)]
+        [string]$Method,
+
+        [Parameter(Mandatory=$false)]
+        [hashtable]$QueryParameters
+    )
+
+    $headers = @{
+        "Authorization" = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$ApiKey"))
+    }
+
+    $uriWithParams = $Uri + $ApiPath
+    if ($QueryParameters) {
+        $uriWithParams += "?" + ($QueryParameters.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "&"
+    }
+
+    $response = Invoke-RestMethod -Uri $uriWithParams -Method $Method -Headers $headers
+
+    return $response
+}
+
+ # Example usage
