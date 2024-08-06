@@ -1,0 +1,80 @@
+# Import the function definition
+. .\Get-SonarQubeUserGroup.ps1
+
+Describe "Get-SonarQubeUserGroup" {
+    # Mock the external function
+    Mock Invoke-SonarQubeRestMethod {
+        param (
+            $commonArgs
+        )
+        @{
+            paging = @{
+                pageIndex = 1
+                total = 1
+            }
+            groups = @(
+                @{ name = "group1"; description = "Test group 1" },
+                @{ name = "group2"; description = "Test group 2" }
+            )
+        }
+    }
+
+    Context "When called with valid parameters" {
+        It "Should retrieve user groups successfully" {
+            $Uri = "https://sonarcloud.io/"
+            $ApiKey = "1ffcef4bad0f180b4ca71a3c433983ce290a9790"
+
+            $result = Get-SonarQubeUserGroup -Uri $Uri -ApiKey $ApiKey
+
+            $result | Should -Not -BeNullOrEmpty
+            $result | Should -BeOfType "System.Collections.ArrayList"
+            $result.Count | Should -Be 2
+            $result[0].name | Should -Be "group1"
+            $result[1].name | Should -Be "group2"
+        }
+    }
+
+    Context "When called with a Match parameter" {
+        Mock Invoke-SonarQubeRestMethod {
+            param (
+                $commonArgs
+            )
+            @{
+                paging = @{
+                    pageIndex = 1
+                    total = 1
+                }
+                groups = @(
+                    @{ name = "group1"; description = "Test group 1" }
+                )
+            }
+        }
+
+        It "Should pass the Match parameter to the query" {
+            $Uri = "https://sonarcloud.io/"
+            $ApiKey = "1ffcef4bad0f180b4ca71a3c433983ce290a9790"
+            $Match = "Test"
+
+            $result = Get-SonarQubeUserGroup -Uri $Uri -ApiKey $ApiKey -Match $Match
+
+            $result | Should -Not -BeNullOrEmpty
+            $result | Should -BeOfType "System.Collections.ArrayList"
+            $result.Count | Should -Be 1
+            $result[0].name | Should -Be "group1"
+        }
+    }
+
+    Context "When an error occurs" {
+        Mock Invoke-SonarQubeRestMethod {
+            throw "API call failed"
+        }
+
+        It "Should throw an exception with an error message" {
+            $Uri = "https://sonarcloud.io/"
+            $ApiKey = "1ffcef4bad0f180b4ca71a3c433983ce290a9790
+"
+
+            { Get-SonarQubeUserGroup -Uri $Uri -ApiKey $ApiKey } | Should -Throw -ErrorId "Unable to get User group"
+        }
+    }
+}
